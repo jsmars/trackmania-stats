@@ -1,35 +1,49 @@
-const accountId = "YOUR_ACCOUNT_ID"; // <-- Set here
 const base = "https://trackmania.io/api/player";
 
-async function fetchJson(path) {
-  const res = await fetch(`${base}/${accountId}/${path}`);
+function getAccountId() {
+  return localStorage.getItem("tmAccountId") || "";
+}
+
+function saveAccountId(id) {
+  localStorage.setItem("tmAccountId", id);
+}
+
+async function fetchJson(url) {
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
-async function load() {
+async function start() {
+  const input = document.getElementById("accountIdInput");
+  const accountId = input.value.trim();
+  if (!accountId) return alert("Please enter a valid Account ID.");
+  saveAccountId(accountId);
+  await loadMedals(accountId);
+}
+
+async function loadMedals(accountId) {
   const summaryEl = document.getElementById("summary");
   const campEl = document.getElementById("campaigns");
   summaryEl.textContent = "Loading...";
   campEl.innerHTML = "";
 
   try {
-    const camps = await fetchJson("campaigns");
+    const campaigns = await fetchJson(`${base}/${accountId}/campaigns`);
     let totalMaps = 0;
-    const total = { author:0, gold:0, silver:0, bronze:0 };
+    const total = { author: 0, gold: 0, silver: 0, bronze: 0 };
 
-    for (const c of camps) {
-      const details = await fetchJson(`campaign/${c.id}`);
+    for (const c of campaigns) {
+      const details = await fetchJson(`${base}/${accountId}/campaign/${c.id}`);
       const maps = details.tracks || [];
       totalMaps += maps.length;
 
-      const earned = { author:0, gold:0, silver:0, bronze:0 };
+      const earned = { author: 0, gold: 0, silver: 0, bronze: 0 };
       maps.forEach(m => {
         if (m.medal === "author") earned.author++;
         if (["author", "gold"].includes(m.medal)) earned.gold++;
         if (["author", "gold", "silver"].includes(m.medal)) earned.silver++;
-        if (["author", "gold", "silver", "bronze"].includes(m.medal))
-          earned.bronze++;
+        if (["author", "gold", "silver", "bronze"].includes(m.medal)) earned.bronze++;
       });
 
       Object.keys(earned).forEach(k => total[k] += earned[k]);
@@ -45,18 +59,22 @@ async function load() {
         </div>`;
     }
 
-    const overallPct = v => ((v / totalMaps) * 100).toFixed(1) + "%";
+    const pct = v => ((v / totalMaps) * 100).toFixed(1) + "%";
     summaryEl.innerHTML = `
-      <h2>Total: ${totalMaps} maps</h2>
-      <p>Author: ${total.author}/${totalMaps} (${overallPct(total.author)})</p>
-      <p>Gold: ${total.gold}/${totalMaps} (${overallPct(total.gold)})</p>
-      <p>Silver: ${total.silver}/${totalMaps} (${overallPct(total.silver)})</p>
-      <p>Bronze: ${total.bronze}/${totalMaps} (${overallPct(total.bronze)})</p>`;
-
-  } catch (e) {
-    summaryEl.textContent = "Failed to load data. Check console.";
-    console.error(e);
+      <h2>Total Summary (${totalMaps} maps)</h2>
+      <p>Author: ${total.author}/${totalMaps} (${pct(total.author)})</p>
+      <p>Gold: ${total.gold}/${totalMaps} (${pct(total.gold)})</p>
+      <p>Silver: ${total.silver}/${totalMaps} (${pct(total.silver)})</p>
+      <p>Bronze: ${total.bronze}/${totalMaps} (${pct(total.bronze)})</p>
+    `;
+  } catch (err) {
+    summaryEl.textContent = "❌ Failed to load data. Check console.";
+    console.error(err);
   }
 }
 
-load();
+// Auto-load if accountId was saved
+document.addEventListener("DOMContentLoaded", () => {
+  const saved = getAccountId();
+  if (saved) {
+    document.getElementByI
